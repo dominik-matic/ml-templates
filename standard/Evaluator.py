@@ -50,12 +50,12 @@ class Evaluator:
 		if self.best_valid_loss is None or mean_valid_loss < self.best_valid_loss:
 			self._save_model(model)
 			self.best_valid_loss = mean_valid_loss
-		return metric, losses
+		return metric
 	
 	def test(self, model):
 		if self.verbose:
 			print("Testing...")
-		return _epoch(model, self.test_data)
+		return _epoch(model, self.test_data)[0]
 		
 	def reset(self):
 		self.valid_losses = []
