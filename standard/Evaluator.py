@@ -49,6 +49,7 @@ class Evaluator:
 		self.valid_losses.append(mean_valid_loss)
 		if self.best_valid_loss is None or mean_valid_loss < self.best_valid_loss:
 			self._save_model(model)
+			self.best_valid_loss = mean_valid_loss
 		return metric, losses
 	
 	def test(self, model):
