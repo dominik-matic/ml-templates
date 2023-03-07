@@ -1,37 +1,70 @@
 class Trainer:
-	def __init__(self, model, dataloader, criterion, device, epoch_save_interval):
+	def __init__(self,
+				model,
+				train_data,
+				criterion,
+				evaluator=None,
+				save_train_losses=True,
+				device='cpu',
+				epoch_save_interval=10,
+				save_path="snapshots/snapshot.pt",
+				verbose=True,
+				print_interval=10):
 		self.model = model
-		self.dataloader = dataloader
+		self.train_data = train_data
 		self.criterion = criterion
+		self.evaluator = evaluator
+		self.save_train_losses = save_train_losses
 		self.device = device
 		self.epoch_save_interval = epoch_save_interval
-		self.save_path = ""
+		self.save_path = save_path
+		self.verbose = verbose
+		self.print_interval = print_interval
 		self.current_epoch = 0
-		pass
+		self.losses = []
+		
 	
-	def _save(self, epoch):
-		snapshot = {"state_dict": self.model.state_dict(), "current_epoch": epoch}
-		torch.save(snapshot, self.save_path)
-	
-	def _load(self):
-		snapshot = torch.load(self.save_path, map_location=self.device) # maybe won't work?
-		self.model.load_state_dict(snapshot["state_dict"])
-		self.current_epoch = snapshot["current_epoch"]
-
-
 	def _epoch(self):
-		for X, Y in dataloader:
+		self.model.train()
+		for i, X, Y in enumerate(self.train_data):
 			self.optimizer.zero_grad()
 			y = self.model(X.to(self.device))
 			loss = self.criterion(Y.to(self.device), y)
 			loss.backward()
 			self.optimizer.step()
-			self.evaluator.update_loss(loss.cpu().detach()) # something like that
-			
+			self.losses.append(loss.item())
+			if verbose and (i % self.print_interval == 0):
+				print(f"\tStep {i}:\tloss={losses[-1]}")
+
+	def _save_snapshot(self, epoch):
+		if self.verbose:
+			print(f"Saving snapshot to {self.save_path}...", end=" ")
+		snapshot = {"state_dict": self.model.state_dict(),
+					"current_epoch": epoch,
+					"losses": self.losses}
+		torch.save(snapshot, self.save_path)
+		if self.verbose:
+			print("DONE.")
+	
+	def load_snapshot(self, load_path):
+		if self.verbose:
+			print(f"Loading snapshot from {load_path}...", end=" ")
+		snapshot = torch.load(load_path)
+		self.model.load_state_dict(snapshot["state_dict"])
+		self.model.to(self.device)
+		self.current_epoch = snapshot["current_epoch"]
+		self.losses = snapshot["losses"]
+		if self.verbose:
+			print("DONE")
+
 	def train(self):
 		for i in range(self.current_epoch, n_epochs):
+			if self.verbose:
+				print(f"Epoch {i}:")
 			_epoch()
-			if (i + 1) % epoch_save_interval == 0:
+			if self.evaluator is not None:
+				self.evaluator.validate(model)
+			if i % epoch_save_interval == 0:
 				self._save(i)
 		self._save(n_epochs)
 
