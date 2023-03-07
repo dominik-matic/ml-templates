@@ -50,8 +50,7 @@ class Trainer:
 		if self.verbose:
 			print(f"Loading snapshot from {load_path}...", end=" ")
 		snapshot = torch.load(load_path)
-		self.model.load_state_dict(snapshot["state_dict"])
-		self.model.to(self.device)
+		self.model.load_state_dict(snapshot["state_dict"], map_location=device)
 		self.current_epoch = snapshot["current_epoch"]
 		self.losses = snapshot["losses"]
 		if self.verbose:
@@ -62,10 +61,10 @@ class Trainer:
 			if self.verbose:
 				print(f"Epoch {i}:")
 			_epoch()
-			if self.evaluator is not None:
-				self.evaluator.validate(model)
 			if i % epoch_save_interval == 0:
 				self._save(i)
+			if self.evaluator is not None:
+				self.evaluator.validate(model)
 		self._save(n_epochs)
 
 def main():
