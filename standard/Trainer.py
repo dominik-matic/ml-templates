@@ -27,6 +27,7 @@ class Trainer:
 		self.current_epoch = 0
 		self.train_losses = []
 		self.valid_losses = []
+		self.lowest_valid_loss = None
 		
 	
 
@@ -62,7 +63,9 @@ class Trainer:
 			print(f"Saving snapshot to {self.snapshot_path}...", end=" ")
 		snapshot = {"state_dict": self.model.state_dict(),
 					"current_epoch": epoch,
-					"losses": self.losses}
+					"train_losses": self.train_losses,
+					"valid_losses": self.valid_losses,
+					"lowest_valid_loss": self.lowest_valid_loss}
 		torch.save(snapshot, self.snapshot_path)
 		if self.verbose:
 			print("DONE.")
@@ -73,9 +76,23 @@ class Trainer:
 		snapshot = torch.load(load_path)
 		self.model.load_state_dict(snapshot["state_dict"], map_location=device)
 		self.current_epoch = snapshot["current_epoch"]
-		self.losses = snapshot["losses"]
+		self.train_losses = snapshot["train_losses"]
+		self.valid_losses = snapshot["valid_losses"]
+		self.lowest_valid_loss = snapshot["lowest_valid_loss"]
 		if self.verbose:
 			print("DONE")
+	
+	def _save_model(self, epoch):
+		save_path = self.model_folder
+		if hasattr(self.model, "name"):
+			save_path += model.name + f"_e{epoch}.pt"
+		else:
+			save_path += f"model_e{epoch}.pt"
+		if self.verbose:
+			print(f"Saving model to {save_path}...", end=" ")
+		torch.save(self.model.state_dict(), save_path)
+		if self.verbose:
+			print("DONE.")
 
 	def train(self):
 		# maybe this initial loss calculation is unnecessary?
@@ -91,6 +108,9 @@ class Trainer:
 			self.train_losses.append(l)
 			l = self._valid_epoch(self.valid_data)
 			self.valid_losses.append(l)
+			if self.lowest_valid_loss is None or l < self.lowest_valid_loss:
+				self.lowest_valid_loss = l
+				self._save_model(i)
 			if i % epoch_save_interval == 0:
 				self._save_snapshot(i)
 		self._save_snapshot(n_epochs)
