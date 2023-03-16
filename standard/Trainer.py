@@ -94,7 +94,7 @@ class Trainer:
 		if self.verbose:
 			print("DONE.")
 
-	def train(self):
+	def train(self, n_epochs):
 		# maybe this initial loss calculation is unnecessary?
 		if self.current_epoch == 0:
 			if verbose:
