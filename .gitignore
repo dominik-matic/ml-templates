@@ -1,5 +1,7 @@
+standard/__pycache__
 standard/models/
 standard/snapshots/
+multi/__pycache__
 multi/models/
 multi/snapshots/
 
