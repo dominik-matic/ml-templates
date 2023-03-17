@@ -1,9 +1,13 @@
-import tqdm
+from tqdm import tqdm
+import torch
+import glob
+import os
 
 class Trainer:
 	def __init__(self,
 				model,
 				criterion,
+				optimizer,
 				train_data,
 				valid_data=None,
 				save_train_losses=True,
@@ -12,9 +16,11 @@ class Trainer:
 				epoch_save_interval=10,
 				snapshot_path="snapshots/snapshot.ss",
 				model_folder="models/",
+				delete_previous_best_model=True,
 				verbose=True):
 		self.model = model
 		self.criterion = criterion
+		self.optimizer = optimizer
 		self.train_data = train_data
 		self.valid_data = valid_data
 		self.save_train_losses = save_train_losses
@@ -23,87 +29,97 @@ class Trainer:
 		self.epoch_save_interval = epoch_save_interval
 		self.snapshot_path = snapshot_path
 		self.model_folder = model_folder
+		self.delete_previous_best_model = delete_previous_best_model
 		self.verbose = verbose
 		self.current_epoch = 0
 		self.train_losses = []
 		self.valid_losses = []
 		self.lowest_valid_loss = None
+		self.previous_best_model_name = ""
+
+		if os.path.exists(self.snapshot_path):
+			self._load_snapshot(self.snapshot_path)
 		
 	
 
 	def _train_epoch(self):
 		self.model.train()
 		losses = []
-		for i, X, Y in (pbar := tqdm(enumerate(self.train_data), desc="loss = ")):
+		for X, Y in (pbar_train := tqdm(self.train_data, desc="loss = ", leave=False)):
 			self.optimizer.zero_grad()
 			y = self.model(X.to(self.device))
-			loss = self.criterion(Y.to(self.device), y)
+			loss = self.criterion(y, Y.to(self.device))
 			loss.backward()
 			self.optimizer.step()
 			losses.append(loss.item())
-			pbar.set_description(f"loss = {losses[-1]}")
+			pbar_train.set_description(f"train loss = {losses[-1]:.8f}")
 		return sum(losses) / len(losses)
-		#self.train_losses.append(sum(losses)/len(losses))
 	
 	def _valid_epoch(self, data):
-		model.eval()
+		self.model.eval()
 		losses = []
-		for i, X, Y in (pbar := tqdm(enumerate(data), desc="loss = ")):
+		for X, Y in (pbar_valid := tqdm(data, desc="loss = ", leave=False)):
 			with torch.no_grad():
-				y = model(X.to(self.device))
-				loss = self.criterion(Y.to(self.device), y)
+				y = self.model(X.to(self.device))
+				loss = self.criterion(y, Y.to(self.device))
 				losses.append(loss.item())
-				pbar.set_description(f"loss = {losses[-1]}")
+				pbar_valid.set_description(f"valid loss = {losses[-1]:.8f}")
 		return sum(losses) / len(losses)
 
 
 
 	def _save_snapshot(self, epoch):
 		if self.verbose:
-			print(f"Saving snapshot to {self.snapshot_path}...", end=" ")
+			tqdm.write(f"Saving snapshot to {self.snapshot_path}...", end=" ")
 		snapshot = {"state_dict": self.model.state_dict(),
 					"current_epoch": epoch,
 					"train_losses": self.train_losses,
 					"valid_losses": self.valid_losses,
-					"lowest_valid_loss": self.lowest_valid_loss}
+					"lowest_valid_loss": self.lowest_valid_loss,
+					"previous_best_model_name": self.previous_best_model_name}
 		torch.save(snapshot, self.snapshot_path)
 		if self.verbose:
-			print("DONE.")
+			tqdm.write("DONE.")
 	
-	def load_snapshot(self, load_path):
+	def _load_snapshot(self, load_path):
 		if self.verbose:
 			print(f"Loading snapshot from {load_path}...", end=" ")
-		snapshot = torch.load(load_path)
-		self.model.load_state_dict(snapshot["state_dict"], map_location=device)
+		snapshot = torch.load(load_path, map_location=self.device)
+		self.model.load_state_dict(snapshot["state_dict"])
 		self.current_epoch = snapshot["current_epoch"]
 		self.train_losses = snapshot["train_losses"]
 		self.valid_losses = snapshot["valid_losses"]
 		self.lowest_valid_loss = snapshot["lowest_valid_loss"]
+		self.previous_best_model_name = snapshot["previous_best_model_name"]
 		if self.verbose:
 			print("DONE")
+			
 	
 	def _save_model(self, epoch):
+		if self.delete_previous_best_model and os.path.exists(self.previous_best_model_name):
+			os.remove(self.previous_best_model_name)
 		save_path = self.model_folder
 		if hasattr(self.model, "name"):
-			save_path += model.name + f"_e{epoch}.pt"
+			save_path += self.model.name + f"_e{epoch}.pt"
 		else:
 			save_path += f"model_e{epoch}.pt"
 		if self.verbose:
-			print(f"Saving model to {save_path}...", end=" ")
+			tqdm.write(f"Saving model to {save_path}...", end=" ")
+		self.previous_best_model_name = save_path
 		torch.save(self.model.state_dict(), save_path)
 		if self.verbose:
-			print("DONE.")
+			tqdm.write("DONE.")
 
 	def train(self, n_epochs):
 		# maybe this initial loss calculation is unnecessary?
 		if self.current_epoch == 0:
-			if verbose:
+			if self.verbose:
 				print("Calculating initial losses on training and valid sets")
 			l = self._valid_epoch(self.train_data)
 			self.train_losses.append(l)
 			l = self._valid_epoch(self.valid_data)
 			self.valid_losses.append(l)
-		for i in (pbar := tqdm(range(self.current_epoch, n_epochs), desc="Epoch 0 loss = ")):
+		for i in (pbar := tqdm(range(self.current_epoch, n_epochs), desc=f"E{self.current_epoch} TL={self.train_losses[-1]:.8f} VL={self.valid_losses[-1]:.8f}")):
 			l = self._train_epoch()
 			self.train_losses.append(l)
 			l = self._valid_epoch(self.valid_data)
@@ -111,8 +127,9 @@ class Trainer:
 			if self.lowest_valid_loss is None or l < self.lowest_valid_loss:
 				self.lowest_valid_loss = l
 				self._save_model(i)
-			if i % epoch_save_interval == 0:
+			if i % self.epoch_save_interval == 0:
 				self._save_snapshot(i)
+			pbar.set_description(f"E{i + 1} TL={self.train_losses[-1]:.8f} VL={self.valid_losses[-1]:.8f}")
 		self._save_snapshot(n_epochs)
 
 def main():

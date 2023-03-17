@@ -1,3 +1,7 @@
+import torch
+from tqdm import tqdm
+from torcheval.metrics import MulticlassConfusionMatrix
+
 class Evaluator:
 	def __init__(self,
 				criterion,
@@ -15,18 +19,19 @@ class Evaluator:
 		model.eval()
 		metric = MulticlassConfusionMatrix(num_classes=self.num_classes)
 		losses = []
-		for i, X, Y in (pbar := tqdm(enumerate(self.test_data), desc="loss = ")):
+		for X, Y in (pbar := tqdm(self.test_data, desc="loss=")):
 			with torch.no_grad():
 				y = model(X.to(self.device))
-				loss = self.criterion(Y.to(self.device), y)
+				loss = self.criterion(y, Y.to(self.device))
 				losses.append(loss.item())
-				metric.update(Y, y.cpu())
-				pbar.set_description(f"loss = {losses[-1]}")
+				# Change and modify this metric to whateverr you want to measure
+				metric.update(Y.squeeze(1).to(torch.long), torch.round(y.cpu().squeeze(1)).to(torch.long))
+				pbar.set_description(f"loss={losses[-1]}")
 		return sum(losses) / len(losses), metric
 
 	def test(self, model):
 		if self.verbose:
 			print("Testing...")
-		return _epoch(model)
+		return self._test_epoch(model)
 	
 	
