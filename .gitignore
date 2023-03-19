@@ -1,13 +1,7 @@
 standard/__pycache__
-standard/models/
-standard/snapshots/
+standard/models/*.pt
+standard/snapshots/*.ss
 multi/__pycache__
-multi/models/
-multi/snapshots/
-
-!standard/models/README.md
-!standard/snapshots/README.md
-!multi/models/README.md
-!multi/snapshots/README.md
-
+multi/models/*.pt
+multi/snapshots/*.ss
 
