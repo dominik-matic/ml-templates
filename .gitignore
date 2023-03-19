@@ -5,3 +5,9 @@ multi/__pycache__
 multi/models/
 multi/snapshots/
 
+!standard/models/README.md
+!standard/snapshots/README.md
+!multi/models/README.md
+!multi/snapshots/README.md
+
+
