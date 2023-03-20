@@ -10,6 +10,7 @@ class Trainer:
 				optimizer,
 				train_data,
 				valid_data=None,
+				scheduler=None,
 				save_train_losses=True,
 				save_valid_losses=True,
 				device='cpu',
@@ -23,6 +24,7 @@ class Trainer:
 		self.optimizer = optimizer
 		self.train_data = train_data
 		self.valid_data = valid_data
+		self.scheduler = scheduler
 		self.save_train_losses = save_train_losses
 		self.save_valid_losses = save_valid_losses
 		self.device = device
@@ -53,6 +55,8 @@ class Trainer:
 			self.optimizer.step()
 			losses.append(loss.item())
 			pbar_train.set_description(f"train loss = {losses[-1]:.8f}")
+		if self.scheduler is not None:
+			self.scheduler.step()
 		return sum(losses) / len(losses)
 	
 	def _valid_epoch(self, data):
@@ -76,7 +80,8 @@ class Trainer:
 					"train_losses": self.train_losses,
 					"valid_losses": self.valid_losses,
 					"lowest_valid_loss": self.lowest_valid_loss,
-					"previous_best_model_name": self.previous_best_model_name}
+					"previous_best_model_name": self.previous_best_model_name,
+					"scheduler_state": self.scheduler.state_dict() if self.scheduler is not None else None}
 		torch.save(snapshot, self.snapshot_path)
 		if self.verbose:
 			tqdm.write("DONE.")
@@ -91,6 +96,8 @@ class Trainer:
 		self.valid_losses = snapshot["valid_losses"]
 		self.lowest_valid_loss = snapshot["lowest_valid_loss"]
 		self.previous_best_model_name = snapshot["previous_best_model_name"]
+		if self.scheduler is not None:
+			self.scheduler.load_state_dict(snapshot["scheduler_state"])
 		if self.verbose:
 			print("DONE")
 			
