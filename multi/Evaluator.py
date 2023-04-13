@@ -7,7 +7,7 @@ class Evaluator:
 	def __init__(self,
 				criterion,
 				test_data,
-				num_classes,
+				num_classes=2, # could be completely unnecessary if you're not doing a classification task
 				verbose=True):
 		self.criterion = criterion
 		self.test_data = test_data
@@ -17,15 +17,20 @@ class Evaluator:
 
 	def _test_epoch(self, model):
 		model.eval()
+		
+		# Change and modify this metric to whatever you want to measure
 		metric = MulticlassConfusionMatrix(num_classes=self.num_classes)
+		
 		losses = []
 		for X, Y in (pbar := tqdm(self.test_data, desc="loss=")):
 			with torch.no_grad():
 				y = model(X.to(self.device))
 				loss = self.criterion(y, Y.to(self.device))
 				losses.append(loss.item())
-				# Change and modify this metric to whateverr you want to measure
+				
+				# Change and modify this metric to whatever you want to measure
 				metric.update(Y.squeeze(1).to(torch.long), torch.round(y.cpu().squeeze(1)).to(torch.long))
+				
 				pbar.set_description(f"loss={losses[-1]}")
 		return sum(losses) / len(losses), metric
 
